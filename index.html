@@ -7846,7 +7846,7 @@
 <script>
 (function(){
   var S=[["stone-01","1 · The Journey"],["stone-02","2 · The Hope"],["stone-03","3 · The Soup Stone"],["stone-04","4 · The Delicious Dish"],["stone-05","5 · The Ingredients"],["stone-06","6 · The Curiosity"],["stone-07","7 · The Happiness"],["stone-08","8 · The Tasty Soup"],["stone-09","9 · The Realisation"]];
-  var P=[["pancake-01","1 · A busy kitchen"],["pancake-02","2 · It jumps"],["pancake-03","3 · The dog"],["pancake-04","4 · The cat and the goat"],["pancake-05","5 · The fox"],["pancake-06","6 · It is gone"]];
+  var P=[["pancake-01","Scene 1 · The Crispy Pancake Jumps Out!"],["pancake-02","Scene 2 · Meeting the Pet Dog and the Cat"],["pancake-03","Scene 3 · The Goat and the Clever Fox"]];
   function panel(title,list){
     var d=document.createElement("div");d.className="nar";
     var h="<h3>🎧 "+title+"</h3><div class='nar-grid'>";
@@ -7861,6 +7861,49 @@
   function add(id,title,list){var s=document.getElementById(id);if(s&&!s.querySelector(".nar"))s.insertBefore(panel(title,list),s.children[1]||null)}
   add("section-stonesoup","Listen: The Stone Soup (emotional narration)",S);
   add("section-pancake","Listen: The Runaway Pancake (emotional narration)",P);
+})();
+</script>
+
+<script>
+/* Recorded-voice buttons for each passage (plays the MP3 files in /audio) */
+(function(){
+  var cur=null,queue=[],btnOn=null;
+  function reset(){if(btnOn){btnOn.textContent=btnOn.getAttribute("data-label");btnOn.classList.remove("ring-4","ring-emerald-300")}btnOn=null}
+  function stop(){queue=[];if(cur){cur.pause();cur=null}reset();try{window.speechSynthesis&&speechSynthesis.cancel()}catch(e){}}
+  function next(fallback){
+    if(!queue.length){reset();cur=null;return}
+    var id=queue.shift();var a=new Audio("audio/"+id+".mp3");cur=a;
+    a.onended=function(){next(fallback)};
+    a.onerror=function(){cur=null;queue=[];reset();if(fallback)try{speakText(fallback)}catch(e){}};
+    a.play().catch(function(){});
+  }
+  window.playRecorded=function(btn,ids,fallback){
+    if(btnOn===btn){stop();return}
+    stop();btnOn=btn;btn.textContent="⏹ Stop voice";btn.classList.add("ring-4","ring-emerald-300");
+    queue=ids.slice();next(fallback);
+  };
+  function addBtn(view,ids,fallback){
+    if(!view||view.querySelector(".rec-btn"))return;
+    var ref=[].slice.call(view.querySelectorAll("button")).filter(function(b){return /Read (Entire Passage|Scene) Aloud/.test(b.textContent)})[0];
+    if(!ref)return;
+    var b=document.createElement("button");b.type="button";b.className="rec-btn rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 font-display text-xs sm:text-sm font-bold shadow";
+    var label="🎧 Play Recorded Voice";b.textContent=label;b.setAttribute("data-label",label);
+    b.onclick=function(){playRecorded(b,ids,fallback)};
+    ref.parentNode.insertBefore(b,ref);
+  }
+  function wrap(name,fn){var o=window[name];if(typeof o!=="function")return;window[name]=function(i){stop();var r=o.apply(this,arguments);setTimeout(function(){fn(i)},60);return r}}
+  wrap("selectStonePassage",function(i){
+    var p=STONE_SOUP_PASSAGES[i];if(!p)return;
+    addBtn(document.getElementById("stone-passage-view"),["stone-0"+p.num],p.sentences.map(function(s){return s.en}).join(" "));
+  });
+  wrap("selectPancakeScene",function(i){
+    var p=PANCAKE_PASSAGES[i];if(!p)return;
+    var n=p.num;
+    addBtn(document.getElementById("pancake-scene-view"),["pancake-0"+n],p.sentences.map(function(s){return s.en}).join(" "));
+  });
+  /* the app already rendered its first passage; add buttons there too */
+  try{selectStonePassage(typeof currentStoneIdx==="number"?currentStoneIdx:0)}catch(e){}
+  try{selectPancakeScene(typeof currentPancakeIdx==="number"?currentPancakeIdx:0)}catch(e){}
 })();
 </script>
 
