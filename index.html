@@ -6773,6 +6773,71 @@
     // ------------------------------------------------------------------------
     // 2. Main React Next-Level Interactive Studio (Mounted in #react-nextlevel-studio-root)
     // ------------------------------------------------------------------------
+    function IngImg(props) {
+      const ing = props.ing, size = props.size || 48;
+      const [bad, setBad] = useState(false);
+      if (bad) {
+        return h('div', {
+          className: 'flex shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow ' + ing.color,
+          style: { width: size, height: size, fontSize: Math.round(size * 0.5) }
+        }, ing.emoji);
+      }
+      return h('img', {
+        src: 'images/' + ing.id + '.jpg', alt: ing.name, loading: 'lazy', onError: () => setBad(true),
+        className: 'shrink-0 rounded-2xl object-cover shadow', style: { width: size, height: size }
+      });
+    }
+
+    // Ingredient flies in an arc from its card into the pot, then the pot splashes.
+    function flyToPot(ing, fromEl) {
+      try {
+        const pot = document.getElementById('cauldron-pot');
+        if (!pot || !fromEl || !window.anime || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const a = fromEl.getBoundingClientRect(), b = pot.getBoundingClientRect();
+        const el = document.createElement('div');
+        el.className = 'cs-fly';
+        el.textContent = ing.emoji;
+        const img = new Image();
+        img.onload = () => { el.textContent = ''; el.appendChild(img); };
+        img.src = 'images/' + ing.id + '.jpg';
+        el.style.left = (a.left + a.width / 2 - 22) + 'px';
+        el.style.top = (a.top + a.height / 2 - 22) + 'px';
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 1600);
+        const dx = (b.left + b.width / 2) - (a.left + a.width / 2);
+        const dy = (b.top + 30) - (a.top + a.height / 2);
+        window.anime.timeline({ complete: () => { el.remove(); splashPot(); } })
+          .add({ targets: el, translateX: dx, rotate: 540, duration: 850, easing: 'linear' }, 0)
+          .add({ targets: el, translateY: [{ value: Math.min(-140, dy - 120), duration: 380, easing: 'easeOutQuad' }, { value: dy, duration: 470, easing: 'easeInQuad' }], scale: [{ value: 1.35, duration: 380 }, { value: 0.6, duration: 470 }] }, 0);
+      } catch (e) {}
+    }
+    function splashPot() {
+      try {
+        if (!window.anime) return;
+        window.anime({ targets: '#cauldron-pot', scaleY: [1, 0.93, 1.04, 1], scaleX: [1, 1.04, 0.98, 1], duration: 650, easing: 'easeOutElastic(1, .6)' });
+        const pot = document.getElementById('cauldron-soup');
+        if (!pot) return;
+        for (let i = 0; i < 8; i++) {
+          const d = document.createElement('span');
+          d.className = 'cs-drop';
+          d.style.left = (30 + Math.random() * 40) + '%';
+          pot.appendChild(d);
+          window.anime({ targets: d, translateX: (Math.random() - 0.5) * 90, translateY: [0, -50 - Math.random() * 40, 10], opacity: [1, 1, 0], duration: 800, easing: 'easeOutQuad', complete: () => d.remove() });
+        }
+      } catch (e) {}
+    }
+    function stirAnim() {
+      try {
+        if (!window.anime) return;
+        window.anime({ targets: '#cauldron-ladle', rotate: [-28, 28, -28, 28, 0], duration: 1000, easing: 'easeInOutSine' });
+        window.anime({ targets: '.cs-swirl', rotate: '+=360', duration: 1000, easing: 'easeInOutSine' });
+      } catch (e) {}
+    }
+    function soupColor(p) {
+      const t = Math.max(0, Math.min(1, p / 100)), A = [96, 165, 205], B = [214, 138, 52];
+      return 'rgb(' + A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',') + ')';
+    }
+
     function ReactNextLevelStudioApp() {
       const [activeTab, setActiveTab] = useState('cauldron');
       const [stars, setStars] = useState(starScore || 0);
@@ -6833,8 +6898,9 @@
         return Math.min(100, base);
       }, [addedIds]);
 
-      function handleAddIngredient(ing) {
+      function handleAddIngredient(ing, ev) {
         setActiveIngredient(ing);
+        if (ev && ev.currentTarget && !addedIds.includes(ing.id)) flyToPot(ing, ev.currentTarget);
         if (!addedIds.includes(ing.id)) {
           const next = [...addedIds, ing.id];
           setAddedIds(next);
@@ -6849,6 +6915,7 @@
         const nextStir = stirCount + 1;
         setStirCount(nextStir);
         playChime('word');
+        stirAnim();
         speakText('Stirring the bubbling stone soup pot! Mmm, what a pleasant aroma!', 'traveller');
         if (nextStir % 3 === 0) {
           addStars(3, '🥄 Master Soup Stirrer!', 'You stirred the pot and spread the delicious aroma through the village!');
@@ -6862,6 +6929,7 @@
           return;
         }
         setSoupServed(true);
+        try { if (window.anime) window.anime({ targets: '#cauldron-pot', translateY: [0, -14, 0], duration: 700, easing: 'easeOutBounce' }); if (typeof window.confetti === 'function') window.confetti(); } catch (e) {}
         addStars(20, '🎉 Village Stone Soup Feast!', 'You cooked the complete Stone Soup and taught the village the joy of sharing!');
         speakText('Hooray! The Stone Soup is ready! It is just an ordinary stone, but the soup is delicious because everyone shared their food!', 'traveller');
       }
@@ -7063,15 +7131,13 @@
                 const isAdded = addedIds.includes(ing.id);
                 return h('div', {
                   key: ing.id,
-                  onClick: () => handleAddIngredient(ing),
+                  onClick: (ev) => handleAddIngredient(ing, ev),
                   className: 'cursor-pointer rounded-2xl p-3.5 border-2 transition transform hover:-translate-y-1 flex items-start gap-3 ' +
                     (isAdded
                       ? 'bg-emerald-50 border-emerald-400 shadow-md'
                       : 'bg-amber-50/70 hover:bg-amber-100/80 border-amber-200 shadow-sm')
                 },
-                  h('div', {
-                    className: 'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-2xl text-white shadow ' + ing.color
-                  }, ing.emoji),
+                  h(IngImg, { ing: ing, size: 56 }),
                   h('div', { className: 'flex-1 min-w-0' },
                     h('div', { className: 'flex items-center justify-between gap-1' },
                       h('span', { className: 'text-[10px] font-extrabold uppercase tracking-wider text-amber-800' }, 'Step ' + ing.step),
@@ -7107,23 +7173,29 @@
                 })
               ),
 
-              // Visual Bubbling Cauldron Box
-              h('div', { className: 'relative rounded-2xl bg-slate-950/80 p-4 border border-white/10 text-center space-y-3' },
-                h('div', { className: 'flex justify-center gap-2 text-xl animate-bounce' },
-                  addedIds.length > 0
-                    ? addedIds.map(id => {
-                        const item = CAULDRON_INGREDIENTS.find(x => x.id === id);
-                        return h('span', { key: id, title: item ? item.name : '' }, item ? item.emoji : '✨');
-                      })
-                    : h('span', { className: 'text-xs text-slate-400 italic' }, 'Pot is waiting! Click Step 1 (Smooth Round Stone) to start cooking...')
-                ),
-                h('div', { className: 'mx-auto flex h-28 w-44 flex-col items-center justify-center rounded-b-full rounded-t-2xl bg-gradient-to-b from-amber-600 via-orange-700 to-slate-800 border-4 border-amber-400 shadow-inner' },
-                  h('div', { className: 'text-4xl' }, soupServed ? '🥣🎉' : (addedIds.length >= 4 ? '🍲♨️' : '🪨💧')),
-                  h('div', { className: 'font-display text-xs font-bold text-amber-100 mt-1' },
-                    soupServed ? 'Delicious Stone Soup Ready!' : (addedIds.length === 0 ? 'Empty Pot on Fire' : 'Bubbling & Smelling Yummy!')
+              // Animated cauldron scene: fire, steam, bubbling soup, floating ingredients, ladle
+              h('div', { id: 'cauldron-scene', className: 'cs-scene' },
+                [0, 1, 2, 3].map(i => h('span', { key: 's' + i, className: 'cs-steam', style: { left: (34 + i * 9) + '%', animationDelay: (i * 0.7) + 's' } })),
+                h('div', { id: 'cauldron-pot', className: 'cs-pot' },
+                  h('div', { className: 'cs-rim' }),
+                  h('div', { id: 'cauldron-soup', className: 'cs-soup', style: { background: soupColor(soupProgress) } },
+                    h('div', { className: 'cs-swirl' }),
+                    [0, 1, 2, 3, 4, 5, 6].map(i => h('span', { key: 'b' + i, className: 'cs-bubble', style: { left: (10 + i * 12) + '%', animationDelay: (i * 0.35) + 's', animationDuration: (1.4 + (i % 3) * 0.5) + 's' } })),
+                    addedIds.map((id, i) => {
+                      const item = CAULDRON_INGREDIENTS.find(x => x.id === id);
+                      return item ? h('div', { key: id, className: 'cs-float', title: item.name, style: { left: (8 + (i * 29) % 66) + '%', animationDelay: (i * 0.3) + 's' } },
+                        h(IngImg, { ing: item, size: 30 })) : null;
+                    })
+                  ),
+                  h('div', { id: 'cauldron-ladle', className: 'cs-ladle' }),
+                  h('div', { className: 'cs-label' },
+                    soupServed ? '🥣 Delicious Stone Soup Ready!' : (addedIds.length === 0 ? 'Empty pot on the fire' : (addedIds.length >= 4 ? 'Bubbling & smelling yummy!' : 'Water is warming up...'))
                   )
                 ),
-                h('div', { className: 'text-lg tracking-widest' }, '🔥🔥🔥')
+                h('div', { className: 'cs-fire' },
+                  [0, 1, 2, 3, 4].map(i => h('span', { key: 'f' + i, className: 'cs-flame', style: { left: (8 + i * 19) + '%', animationDelay: (i * 0.17) + 's' } }))
+                ),
+                addedIds.length === 0 ? h('div', { className: 'cs-hint' }, 'Click Step 1 (Smooth Round Stone) to start cooking') : null
               ),
 
               // Active Villager Speech Bubble
@@ -7837,5 +7909,32 @@
 </script>
 
 
+<style>
+.cs-scene{position:relative;height:290px;border-radius:1rem;overflow:hidden;background:radial-gradient(ellipse at 50% 85%,rgba(251,146,60,.45),transparent 60%),linear-gradient(#0f172a,#1e1b2e 70%,#2b1d14)}
+.cs-pot{position:absolute;left:50%;bottom:48px;width:210px;height:130px;margin-left:-105px;transform-origin:50% 100%;border-radius:8px 8px 50% 50%/8px 8px 80% 80%;background:linear-gradient(100deg,#111 0%,#3a3a3f 28%,#161618 55%,#050505 100%);box-shadow:inset 0 -14px 24px rgba(0,0,0,.7),0 0 38px rgba(251,146,60,.35)}
+.cs-pot::before,.cs-pot::after{content:"";position:absolute;top:18px;width:26px;height:34px;border:6px solid #222;border-radius:50%}
+.cs-pot::before{left:-24px;border-right-color:transparent}.cs-pot::after{right:-24px;border-left-color:transparent}
+.cs-rim{position:absolute;left:-6px;right:-6px;top:-8px;height:18px;border-radius:50%;background:linear-gradient(#4a4a50,#18181b);z-index:3}
+.cs-soup{position:absolute;left:4px;right:4px;top:-4px;height:44px;border-radius:50%;overflow:hidden;z-index:2;box-shadow:inset 0 6px 12px rgba(255,255,255,.28),inset 0 -6px 10px rgba(0,0,0,.25);transition:background .8s}
+.cs-swirl{position:absolute;inset:6px 14%;border-radius:50%;border:3px solid rgba(255,255,255,.28);border-top-color:transparent;border-bottom-color:transparent}
+.cs-bubble{position:absolute;bottom:-8px;width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.55);animation:csBub 1.6s ease-in infinite}
+@keyframes csBub{0%{transform:translateY(0) scale(.5);opacity:0}30%{opacity:.9}100%{transform:translateY(-34px) scale(1.15);opacity:0}}
+.cs-float{position:absolute;top:6px;border-radius:50%;overflow:hidden;animation:csBob 2.2s ease-in-out infinite;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+.cs-float>*{border-radius:50%!important}
+@keyframes csBob{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(5px) rotate(8deg)}}
+.cs-drop{position:absolute;top:8px;width:7px;height:7px;border-radius:50%;background:#fde68a}
+.cs-ladle{position:absolute;left:62%;top:-86px;width:7px;height:120px;border-radius:4px;background:linear-gradient(90deg,#92400e,#d97706);transform-origin:50% 100%;transform:rotate(18deg);z-index:4}
+.cs-ladle::after{content:"";position:absolute;bottom:-4px;left:-11px;width:29px;height:16px;border-radius:0 0 18px 18px;background:#9ca3af}
+.cs-label{position:absolute;left:0;right:0;bottom:16px;text-align:center;font-weight:800;font-size:12px;color:#fde68a;text-shadow:0 1px 3px #000;z-index:2}
+.cs-fire{position:absolute;left:50%;bottom:6px;width:190px;height:60px;margin-left:-95px}
+.cs-flame{position:absolute;bottom:0;width:30px;height:54px;border-radius:50% 50% 50% 50%/65% 65% 35% 35%;background:radial-gradient(circle at 50% 80%,#fff7ae,#fbbf24 35%,#f97316 65%,transparent 72%);transform-origin:50% 100%;animation:csFlame .6s ease-in-out infinite alternate;filter:blur(.4px)}
+@keyframes csFlame{0%{transform:scale(.85,.8) skewX(-4deg)}100%{transform:scale(1.1,1.2) skewX(5deg)}}
+.cs-steam{position:absolute;bottom:150px;width:26px;height:70px;border-radius:50%;background:radial-gradient(ellipse,rgba(255,255,255,.4),transparent 70%);filter:blur(5px);opacity:0;animation:csSteam 3.2s ease-out infinite}
+@keyframes csSteam{0%{transform:translateY(0) scaleX(.7);opacity:0}25%{opacity:.8}100%{transform:translateY(-90px) scaleX(1.6);opacity:0}}
+.cs-hint{position:absolute;top:10px;left:0;right:0;text-align:center;font-size:12px;font-style:italic;color:#94a3b8}
+.cs-fly{position:fixed;z-index:9999;width:44px;height:44px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:28px;pointer-events:none;background:rgba(255,255,255,.9);box-shadow:0 6px 16px rgba(0,0,0,.35)}
+.cs-fly img{width:100%;height:100%;object-fit:cover}
+@media (prefers-reduced-motion:reduce){.cs-flame,.cs-steam,.cs-bubble,.cs-float{animation:none}}
+</style>
 <a href="practice.html" style="position:fixed;right:14px;bottom:14px;z-index:60;background:#d97706;color:#fff;font:700 13px/1 system-ui,sans-serif;padding:11px 16px;border-radius:999px;box-shadow:0 6px 18px rgba(0,0,0,.25);text-decoration:none">🎮 Quiz &amp; Scramble</a>
 </html>
