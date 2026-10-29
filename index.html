@@ -7936,5 +7936,47 @@
 .cs-fly img{width:100%;height:100%;object-fit:cover}
 @media (prefers-reduced-motion:reduce){.cs-flame,.cs-steam,.cs-bubble,.cs-float{animation:none}}
 </style>
+<script>
+/* Recorded-voice buttons for each passage (plays the MP3 files in /audio) */
+(function(){
+  var cur=null,queue=[],btnOn=null;
+  function reset(){if(btnOn){btnOn.textContent=btnOn.getAttribute("data-label");btnOn.classList.remove("ring-4","ring-emerald-300")}btnOn=null}
+  function stop(){queue=[];if(cur){cur.pause();cur=null}reset();try{window.speechSynthesis&&speechSynthesis.cancel()}catch(e){}}
+  function next(fallback){
+    if(!queue.length){reset();cur=null;return}
+    var id=queue.shift();var a=new Audio("audio/"+id+".mp3");cur=a;
+    a.onended=function(){next(fallback)};
+    a.onerror=function(){cur=null;queue=[];reset();if(fallback)try{speakText(fallback)}catch(e){}};
+    a.play().catch(function(){});
+  }
+  window.playRecorded=function(btn,ids,fallback){
+    if(btnOn===btn){stop();return}
+    stop();btnOn=btn;btn.textContent="⏹ Stop voice";btn.classList.add("ring-4","ring-emerald-300");
+    queue=ids.slice();next(fallback);
+  };
+  function addBtn(view,ids,fallback){
+    if(!view||view.querySelector(".rec-btn"))return;
+    var ref=[].slice.call(view.querySelectorAll("button")).filter(function(b){return /Read (Entire Passage|Scene) Aloud/.test(b.textContent)})[0];
+    if(!ref)return;
+    var b=document.createElement("button");b.type="button";b.className="rec-btn rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 font-display text-xs sm:text-sm font-bold shadow";
+    var label="🎧 Play Recorded Voice";b.textContent=label;b.setAttribute("data-label",label);
+    b.onclick=function(){playRecorded(b,ids,fallback)};
+    ref.parentNode.insertBefore(b,ref);
+  }
+  function wrap(name,fn){var o=window[name];if(typeof o!=="function")return;window[name]=function(i){stop();var r=o.apply(this,arguments);setTimeout(function(){fn(i)},60);return r}}
+  wrap("selectStonePassage",function(i){
+    var p=STONE_SOUP_PASSAGES[i];if(!p)return;
+    addBtn(document.getElementById("stone-passage-view"),["stone-0"+p.num],p.sentences.map(function(s){return s.en}).join(" "));
+  });
+  wrap("selectPancakeScene",function(i){
+    var p=PANCAKE_PASSAGES[i];if(!p)return;
+    var n=p.num;
+    addBtn(document.getElementById("pancake-scene-view"),["pancake-0"+n],p.sentences.map(function(s){return s.en}).join(" "));
+  });
+  /* the app already rendered its first passage; add buttons there too */
+  try{selectStonePassage(typeof currentStoneIdx==="number"?currentStoneIdx:0)}catch(e){}
+  try{selectPancakeScene(typeof currentPancakeIdx==="number"?currentPancakeIdx:0)}catch(e){}
+})();
+</script>
 <a href="practice.html" style="position:fixed;right:14px;bottom:14px;z-index:60;background:#d97706;color:#fff;font:700 13px/1 system-ui,sans-serif;padding:11px 16px;border-radius:999px;box-shadow:0 6px 18px rgba(0,0,0,.25);text-decoration:none">🎮 Quiz &amp; Scramble</a>
 </html>
